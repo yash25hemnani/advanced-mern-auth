@@ -45,4 +45,8 @@ const sendWelcomeEmail = async (email, name) => {
     }
 }
 
+const sendPasswordResetEmail = async (email, resetUrl) => {
+    
+}
+
 module.exports = {sendVerificationEmail, sendWelcomeEmail}

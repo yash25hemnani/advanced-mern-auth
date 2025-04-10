@@ -1,8 +1,10 @@
-const userModel = require('../models/user.model');
 const bcrypt = require('bcryptjs');
+const crypto = require('crypto');
+
+const userModel = require('../models/user.model');
 const generateVerificationToken = require("../utils/generateVerificationToken")
 const generateTokenAndSetCookie = require("../utils/generateTokenAndSetCookie")
-const {sendVerificationEmail, sendWelcomeEmail} = require("../mailtrap/email")
+const {sendVerificationEmail, sendWelcomeEmail, sendPasswordResetEmail} = require("../mailtrap/email")
 
 const signup = async (req, res) => {
     const {email, password, name} = req.body
@@ -89,7 +91,7 @@ const login = async (req, res) => {
 
     } catch (error) {
         console.log("Login Failed with Error: ", error);
-        
+
     }
 }
 
@@ -125,4 +127,32 @@ const verifyEmail = async (req, res) => {
     }
 }
 
-module.exports = {signup, login, logout, verifyEmail}
+const forgotPassword = async (req, res) => {
+    const {email} = req.body
+
+    try {
+        const response = await userModel.findOne({email})
+
+        if(!user) {
+            return res.status(400).json({
+                success: false,
+                message: "Invalid Credentials"
+            })
+        }
+        const resetToken = crypto.randomBytes(20).toString("hex")
+        const resetTokenExpiresAt = Date.now() + 1 * 60 * 60 * 1000 // 1 Hour
+
+        user.resetPasswordToken = resetToken
+        user.resetPasswordExpiresAt = resetTokenExpiresAt;
+
+        await user.save()
+
+        // Send the Password Reset Email
+        await sendPasswordResetEmail(user.email, `${process.env.CLIENT_URL}/reset-password/${resetToken}`)
+
+    } catch (error) {
+        
+    }
+}
+
+module.exports = {signup, login, logout, verifyEmail, forgotPassword}
