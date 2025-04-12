@@ -2,6 +2,8 @@ const express = require("express")
 const dotenv = require('dotenv');
 dotenv.config()
 
+const cookieParser = require("cookie-parser")
+
 const connectToDB = require("./config/db")
 connectToDB()
 
@@ -9,6 +11,7 @@ const app = express()
 const PORT = process.env.PORT || 3000
 
 app.use(express.json()); // To parse incoming requests from req.body
+app.use(cookieParser()); // To parse incoming cookies
 
 const authRoutes = require('./routes/auth.routes');
 

@@ -4,7 +4,7 @@ const crypto = require('crypto');
 const userModel = require('../models/user.model');
 const generateVerificationToken = require("../utils/generateVerificationToken")
 const generateTokenAndSetCookie = require("../utils/generateTokenAndSetCookie")
-const {sendVerificationEmail, sendWelcomeEmail, sendPasswordResetEmail} = require("../mailtrap/email")
+const {sendVerificationEmail, sendWelcomeEmail, sendPasswordResetEmail, sendResetSuccessEmail} = require("../mailtrap/email")
 
 const signup = async (req, res) => {
     const {email, password, name} = req.body
@@ -131,7 +131,7 @@ const forgotPassword = async (req, res) => {
     const {email} = req.body
 
     try {
-        const response = await userModel.findOne({email})
+        const user = await userModel.findOne({email})
 
         if(!user) {
             return res.status(400).json({
@@ -151,8 +151,70 @@ const forgotPassword = async (req, res) => {
         await sendPasswordResetEmail(user.email, `${process.env.CLIENT_URL}/reset-password/${resetToken}`)
 
     } catch (error) {
-        
+        console.log("Error in sending Forget Password request: ", error);
+
+        throw new Error("Error in sending Forget Password request: ", error);
     }
 }
 
-module.exports = {signup, login, logout, verifyEmail, forgotPassword}
+const resetPassword = async (req, res) => {
+    try {
+        const {token} = req.params;
+        const {password} = req.body;
+
+        const user = await userModel.findOne({
+            resetPasswordToken: token,
+            resetPasswordExpiresAt: {$gt: Date.now() }
+        })
+
+        if (!user) {
+            return res.status(400).json({success: false, message: "Invalid or expired reset token"})
+        }
+
+        const hashedPassword = await bcrypt.hash(password, 10)
+
+        user.password = hashedPassword
+        user.resetPasswordToken = undefined;
+        user.resetPasswordExpiresAt = undefined;
+        await user.save()
+
+        await sendResetSuccessEmail(user.email);
+
+        res.status(200).json({success: true, message: "Password reset successful."})
+
+    } catch (error) {
+        console.log("Error resetting password: ", error);
+
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+const checkAuth = async (req, res) => {
+    try {
+        const user = await userModel.findById(req.userId).select("-password") // Unselects Password from the retrevied data
+
+        if(!user) {
+            return res.status(400).json({
+                success:true,
+                message: "User not found"
+            })
+        }
+
+        res.status(200).json({
+            success: true,
+            user
+        })
+    } catch (error) {
+        console.log("Error in checkAuth: ", error);
+
+        return res.status(400).json({
+            success: false,
+            message: error.message
+        })
+    }
+}
+
+module.exports = {signup, login, logout, verifyEmail, forgotPassword, resetPassword, checkAuth}
